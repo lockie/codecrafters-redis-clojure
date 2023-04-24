@@ -20,9 +20,10 @@
   (with-open [server-sock (ServerSocket. port)
               sock (.accept server-sock)]
     (. server-sock (setReuseAddress true))
-    (let [msg-in (receive-message sock)
-          msg-out (handler msg-in)]
-      (send-message sock msg-out))))
+    (while true
+      (let [msg-in (receive-message sock)
+            msg-out (handler msg-in)]
+        (send-message sock msg-out)))))
 
 (defn handler
   [& args]
