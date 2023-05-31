@@ -38,21 +38,35 @@
         (future
           (handle-client sock handler))))))
 
+(defn reply [str]
+  (str/join ["+" str "\r\n"]))
+
+(def database (atom {}))
+
 (defmulti handle-command (fn [[command & _]]
                            (keyword (str/lower-case command))))
 
 (defmethod handle-command :ping
   [_]
-  "+PONG\r\n")
+  (reply "PONG"))
 
 (defmethod handle-command :echo
   [[_ [arg-len arg]]]
-  (str/join ["+" arg "\r\n"]))
+  (reply arg))
+
+(defmethod handle-command :set
+  [[_ [key-len key val-len val]]]
+  (swap! database assoc key val)
+  (reply "OK"))
+
+(defmethod handle-command :get
+  [[_ [key-len key]]]
+  (reply (get @database key "(nil)")))
 
 ;; needed for redis-cli
 (defmethod handle-command :command
   [_]
-  "+PONG\r\n")
+  (reply "O hai"))
 
 (defn handler [message]
   (let [[array-len command-len command & args] message]
