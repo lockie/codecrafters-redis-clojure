@@ -55,13 +55,20 @@
   (reply arg))
 
 (defmethod handle-command :set
-  [[_ [key-len key val-len val]]]
+  [[_ [key-len key val-len val opt-len opt optarg-len optarg]]]
   (swap! database assoc key val)
+  (when (and opt (= (.toUpperCase opt) "PX"))
+    (let [timeout (Integer/parseInt optarg)]
+      (future
+        (Thread/sleep timeout)
+        (swap! database assoc key nil))))
   (reply "OK"))
 
 (defmethod handle-command :get
   [[_ [key-len key]]]
-  (reply (get @database key "(nil)")))
+  (if-let [value (get @database key "(nil)")]
+    (reply value)
+    "$-1\r\n"))
 
 ;; needed for redis-cli
 (defmethod handle-command :command
