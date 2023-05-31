@@ -16,14 +16,19 @@
     (.write writer msg)
     (.flush writer)))
 
+(defn handle-client [sock handler]
+  (while true
+    (let [msg-in (receive-message sock)
+          msg-out (handler msg-in)]
+      (send-message sock msg-out))))
+
 (defn serve [port handler]
-  (with-open [server-sock (ServerSocket. port)
-              sock (.accept server-sock)]
+  (with-open [server-sock (ServerSocket. port)]
     (. server-sock (setReuseAddress true))
     (while true
-      (let [msg-in (receive-message sock)
-            msg-out (handler msg-in)]
-        (send-message sock msg-out)))))
+      (let [sock (.accept server-sock)]
+        (future
+          (handle-client sock handler))))))
 
 (defn handler
   [& args]
