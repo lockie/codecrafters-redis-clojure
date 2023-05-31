@@ -1,13 +1,21 @@
 (ns redis.core
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str])
+  (:import [java.net ServerSocket])
   (:gen-class))
 
-(require '[clojure.java.io :as io])
-(import '[java.net ServerSocket])
 
 (defn receive-message
-  "Read a line of textual data from the given socket"
+  "Read all lines of textual data from the given socket"
   [socket]
-  (.readLine (io/reader socket)))
+  (let [reader (io/reader socket)
+        first-line (.readLine reader)]
+    (when first-line
+      (loop [line first-line
+             res []]
+        (if (.ready reader)
+          (recur (.readLine reader) (conj res line))
+          (conj res line))))))
 
 (defn send-message
   "Send the given string message out over the given socket"
@@ -17,10 +25,10 @@
     (.flush writer)))
 
 (defn handle-client [sock handler]
-  (while true
-    (let [msg-in (receive-message sock)
-          msg-out (handler msg-in)]
-      (send-message sock msg-out))))
+  (doseq [msg-in (repeatedly #(receive-message sock))
+          :while msg-in
+          :let [msg-out (handler msg-in)]]
+    (send-message sock msg-out)))
 
 (defn serve [port handler]
   (with-open [server-sock (ServerSocket. port)]
@@ -30,9 +38,25 @@
         (future
           (handle-client sock handler))))))
 
-(defn handler
-  [& args]
+(defmulti handle-command (fn [[command & _]]
+                           (keyword (str/lower-case command))))
+
+(defmethod handle-command :ping
+  [_]
   "+PONG\r\n")
+
+(defmethod handle-command :echo
+  [[_ [arg-len arg]]]
+  (str/join ["+" arg "\r\n"]))
+
+;; needed for redis-cli
+(defmethod handle-command :command
+  [_]
+  "+PONG\r\n")
+
+(defn handler [message]
+  (let [[array-len command-len command & args] message]
+    (handle-command [command args])))
 
 (defn -main
   "I don't do a whole lot ... yet."
